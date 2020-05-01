@@ -2,6 +2,7 @@ package com.techyourchance.testdoublesfundamentals.exercise4;
 
 import com.techyourchance.testdoublesfundamentals.example4.networking.NetworkErrorException;
 import com.techyourchance.testdoublesfundamentals.exercise4.networking.UserProfileHttpEndpointSync;
+import com.techyourchance.testdoublesfundamentals.exercise4.networking.UserProfileHttpEndpointSync.EndpointResultStatus;
 import com.techyourchance.testdoublesfundamentals.exercise4.users.User;
 import com.techyourchance.testdoublesfundamentals.exercise4.users.UsersCache;
 
@@ -12,6 +13,7 @@ import org.junit.Test;
 import java.util.HashMap;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.junit.Assert.assertThat;
 
 public class FetchUserProfileUseCaseSyncTest {
@@ -43,21 +45,76 @@ public class FetchUserProfileUseCaseSyncTest {
         assertThat(usersCache.getUser(USER_ID).getUserId(), is(USER_ID));
     }
 
+    @Test
+    public void fetchProfile_authError_userNotCached() {
+        userProfileHttpEndpointSync.mCurrentEndpointStatus = EndpointResultStatus.AUTH_ERROR;
+        sut.fetchUserProfileSync(USER_ID);
+        assertThat(usersCache.getUser(USER_ID), is(nullValue()));
+    }
+
+    @Test
+    public void fetchProfile_generalError_userNotCached() {
+        userProfileHttpEndpointSync.mCurrentEndpointStatus = EndpointResultStatus.GENERAL_ERROR;
+        sut.fetchUserProfileSync(USER_ID);
+        assertThat(usersCache.getUser(USER_ID), is(nullValue()));
+    }
+
+    @Test
+    public void fetchProfile_serverError_userNotCached() {
+        userProfileHttpEndpointSync.mCurrentEndpointStatus = EndpointResultStatus.SERVER_ERROR;
+        sut.fetchUserProfileSync(USER_ID);
+        assertThat(usersCache.getUser(USER_ID), is(nullValue()));
+    }
+
+    @Test
+    public void fetchProfile_authError_failureReturned() {
+        userProfileHttpEndpointSync.mCurrentEndpointStatus = EndpointResultStatus.AUTH_ERROR;
+        FetchUserProfileUseCaseSync.UseCaseResult result = sut.fetchUserProfileSync(USER_ID);
+        assertThat(result, is(FetchUserProfileUseCaseSync.UseCaseResult.FAILURE));
+    }
+
+    @Test
+    public void fetchProfile_generalError_failureReturned() {
+        userProfileHttpEndpointSync.mCurrentEndpointStatus = EndpointResultStatus.GENERAL_ERROR;
+        FetchUserProfileUseCaseSync.UseCaseResult result = sut.fetchUserProfileSync(USER_ID);
+        assertThat(result, is(FetchUserProfileUseCaseSync.UseCaseResult.FAILURE));
+    }
+
+    @Test
+    public void fetchProfile_serverError_networkErrorReturned() {
+        userProfileHttpEndpointSync.mCurrentEndpointStatus = EndpointResultStatus.SERVER_ERROR;
+        FetchUserProfileUseCaseSync.UseCaseResult result = sut.fetchUserProfileSync(USER_ID);
+        assertThat(result, is(FetchUserProfileUseCaseSync.UseCaseResult.NETWORK_ERROR));
+    }
+
+    @Test
+    public void fetchProfile_success_successReturned() {
+        userProfileHttpEndpointSync.mCurrentEndpointStatus = EndpointResultStatus.SUCCESS;
+        FetchUserProfileUseCaseSync.UseCaseResult result = sut.fetchUserProfileSync(USER_ID);
+        assertThat(result, is(FetchUserProfileUseCaseSync.UseCaseResult.SUCCESS));
+    }
+
     //    Helper classes
     private static class UserProfileHttpEndpointSyncTd implements UserProfileHttpEndpointSync {
+        EndpointResultStatus mCurrentEndpointStatus = EndpointResultStatus.SUCCESS;
 
-        public EndpointResultStatus mCurrentEndpointStatus = EndpointResultStatus.SUCCESS;
-
-        public String mUserId = "";
+        String mUserId = "";
 
         @Override
         public EndpointResult getUserProfile(String userId) throws NetworkErrorException {
             mUserId = userId;
+
             switch (mCurrentEndpointStatus) {
                 case SUCCESS:
                     return new EndpointResult(EndpointResultStatus.SUCCESS, userId, USER_NAME, USER_IMAGE);
+                case AUTH_ERROR:
+                    return new EndpointResult(EndpointResultStatus.AUTH_ERROR, "", "", "");
+                case GENERAL_ERROR:
+                    return new EndpointResult(EndpointResultStatus.GENERAL_ERROR, "", "", "");
+                case SERVER_ERROR:
+                    throw new NetworkErrorException();
                 default:
-                    return new EndpointResult(EndpointResultStatus.GENERAL_ERROR, userId, "", "");
+                    throw new NetworkErrorException();
             }
         }
     }
